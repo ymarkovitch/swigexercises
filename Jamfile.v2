@@ -1,0 +1,55 @@
+#-*- mode: jam; jam-indent-size: 2; tab-width: 2; indent-tabs-mode: nil; -*-
+#------------------------------------------------------------------------------
+# FILE         :  Jamfile.v2
+# DESCRIPTION  :  Building SWIG C# exercises
+#
+# PROGRAMMED BY:  Yakov Markovitch
+# CREATION DATE:  28 Oct 2015
+#------------------------------------------------------------------------------
+import dotnetexe ;
+import swig ;
+
+project
+  : requirements
+  <library>$(PROJROOT)//pcommon
+  <library>$(PROJROOT)//pcomn_net
+  <include>.
+
+  <swig.language>csharp
+  <swig.include>$(PCOMNPATH)/pcommon/swig
+  <swig.include>..
+
+  <runtime-link>static
+
+  <dotnet.unsafe>on
+
+  <swig.flags>"-namespace SWIG.Exercises"
+  <link>shared
+
+  <threading>multi
+;
+
+alias pcomn_dotnet : [ prod $(PCOMNPATH)/pcomn_dotnet/ :
+  dotnet_helpers.cs
+  dotnet_swigwrapper.cs
+  ]
+  ;
+
+alias swigexercises_wrapper :
+  [ cpp swigexercises_entities : swigexercises_entities.iswg ] ;
+
+lib swigexercises_proxy :
+  swigexercises_wrapper
+  :
+  <link>shared
+  ;
+
+dotnetdll swigexercises :
+  swigexercises_assembly_info.cs
+  swigexercises_wrapper
+  pcomn_dotnet
+  :
+  <dependency>swigexercises_proxy
+  ;
+
+dotnetexe swigex01 : swigex01.cs swigexercises ;

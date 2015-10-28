@@ -1,0 +1,188 @@
+/*-*- mode:swig;tab-width:4;indent-tabs-mode:nil;c-file-style:"stroustrup";c-file-offsets:((innamespace . 0)(inline-open . 0)(case-label . +)) -*-*/
+/*******************************************************************************
+ FILE         :   swigexercises_entities.iswg
+ DESCRIPTION  :   SWIG exercises
+
+ PROGRAMMED BY:   Yakov Markovitch
+ CREATION DATE:   28 Oct 2015
+*******************************************************************************/
+%include "swigexercises.swg"
+
+%module swigexercises_proxy
+
+%pragma(csharp) imclassimports=%{
+  using System ;
+  using System.Runtime ;
+  using System.Runtime.InteropServices ;
+  using System.Diagnostics ;
+  using System.Collections ;
+  using System.Collections.Generic ;
+%}
+
+%{
+using namespace pcomn::net ;
+using pcomn::MAC ;
+%}
+
+class subnet_address ;
+class inet_address ;
+
+%typedef_template(address_pair, std::pair<inet_address, inet_address>) ;
+%typedef_template(unsigned_vector, std::vector<unsigned>) ;
+
+/*******************************************************************************
+ GUID
+*******************************************************************************/
+%typemap(cstype) uuid, const uuid & "Guid"
+%typemap(csin,
+         pre="    ulong q1$csinput, q2$csinput ;\n"
+             "    unsafe { byte[] d$csinput = $csinput.ToByteArray() ;\n"
+             "      fixed (byte *q3$csinput = &d$csinput[0]) { q1$csinput = *(ulong *)q3$csinput ; q2$csinput = *((ulong *)q3$csinput + 1) ;\n"
+             "    }}"
+             "    uuid temp$csinput = new uuid(q1$csinput, q2$csinput) ;"
+        ) uuid, const uuid &
+         "$csclassname.getCPtr(temp$csinput)"
+
+%typemap(csout, excode=SWIGEXCODE) uuid, const uuid & {
+    var data = new $csclassname($imcall, true);$excode
+    byte[] ret = new byte[16] ;
+    Marshal.Copy($csclassname.getCPtr(data).Handle, ret, 0, 16) ;
+    return new Guid(ret) ;
+  }
+
+%typemap(csvarout, excode=SWIGEXCODE2) const uuid, uuid, const uuid &, uuid &, const uuid *, uuid * %{
+    get {
+        var data = new $csclassname($imcall, true);$excode
+        [] ret = new byte[16] ;
+        Marshal.Copy($csclassname.getCPtr(data).Handle, ret, 0, 16) ;
+        return new Guid(ret) ;
+    }
+  %}
+
+struct uuid {
+    uuid() ;
+    %extend {
+        uuid(uint64_t q1, uint64_t q2)
+        {
+            using namespace pcomn ;
+            struct word1 { uint32_t u32 ; uint16_t u16[2] ; } ;
+            PCOMN_STATIC_CHECK(sizeof(word1) == sizeof(uint64_t)) ;
+
+            word1 * const w1 = reinterpret_cast<word1 *>(&q1) ;
+            to_big_endian(w1->u32) ;
+            to_big_endian(w1->u16[0]) ;
+            to_big_endian(w1->u16[1]) ;
+
+            const uint64_t data[] = { q1, q2 } ;
+            return new uuid(*reinterpret_cast<const uuid *>(data + 0)) ;
+        }
+    }
+} ;
+
+%rename("%(camelcase)s", %$isfunction) "" ;
+%rename("%s") "network" ;
+
+typedef unsigned vlan_num ;
+
+/*******************************************************************************
+ pcomn::net::inet_address
+*******************************************************************************/
+class inet_address {
+public:
+    enum ConstructFlags {
+        IGNORE_HOSTNAME = 0x0001,
+        IGNORE_DOTDEC   = 0x0002,
+        ALLOW_EMPTY     = 0x0008,
+        NO_EXCEPTION    = 0x1000,
+
+        ONLY_HOSTNAME   = IGNORE_DOTDEC,
+        ONLY_DOTDEC     = IGNORE_HOSTNAME
+    } ;
+
+    inet_address() ;
+    explicit inet_address(uint32_t host_order_inetaddr) ;
+    inet_address(uint8_t a, uint8_t b, uint8_t c, uint8_t d) ;
+    inet_address(const std::string &address_string, unsigned flags = 0) ;
+
+    operator bool() const ;
+
+    uint32_t ipaddr() const ;
+
+    inet_address next() const ;
+    inet_address prev() const ;
+    static inet_address last() ;
+
+    std::string hostname() const ;
+    std::string dotted_decimal() const ;
+
+    %ToString(str)
+    std::string str() const ;
+} ;
+
+/*******************************************************************************
+ pcomn::net::subnet_address
+*******************************************************************************/
+class subnet_address {
+public:
+    subnet_address() ;
+    subnet_address(uint32_t host_order_inetaddr, unsigned prefix_length) ;
+    subnet_address(const inet_address &address, unsigned prefix_length) ;
+    subnet_address(uint8_t a, uint8_t b, uint8_t c, uint8_t d, unsigned prefix_length) ;
+    subnet_address(const std::string &subnet_string) ;
+
+    operator bool() const ;
+    inet_address addr() const ;
+    operator inet_address() const ;
+    subnet_address subnet() const ;
+    unsigned pfxlen() const ;
+    uint32_t netmask() const ;
+
+    bool is_host() const ;
+    bool is_any() const ;
+    address_pair addr_range() const ;
+
+    %ToString(str)
+    std::string str() const ;
+} ;
+
+/*******************************************************************************
+ pcomn::MAC
+*******************************************************************************/
+struct MAC {
+    MAC() ;
+    MAC(uint8_t o1, uint8_t o2, uint8_t o3, uint8_t o4, uint8_t o5, uint8_t o6) ;
+    MAC(const char *str) ;
+
+    operator bool() const ;
+    unsigned octet(unsigned n) const ;
+
+    %ToString(to_string) ;
+    std::string to_string() const ;
+
+    %properties(MAC) ;
+    %property(size_t, Hash, hash) ;
+} ;
+
+
+/*******************************************************************************
+ Ex
+*******************************************************************************/
+%inline %{
+struct Ex {
+    MAC mac ;
+    uuid id ;
+    inet_address addr ;
+    subnet_address subnet ;
+
+    MAC make_mac(const std::string &str) const
+    {
+        return MAC(str) ;
+    }
+    const MAC &get_mac() const { return mac ; }
+    void set_mac(const MAC &v) { mac = v ; }
+
+    uuid make_id(const std::string &str) const { return pcomn::uuid(str) ; }
+    const uuid &get_id() const { return id ; }
+    void set_id(const uuid &v) { id = v ; }
+} ;
+%}
