@@ -10,6 +10,22 @@
 
 %module swigexercises_proxy
 
+%naturalvar ;
+
+%csmethodmodifiers operator bool() const "private" ;
+%rename(boolCast) operator bool() const ;
+%csattributes operator bool() const %{
+  public static explicit operator bool($csclassname self) { return self.boolCast() ; }
+  public static bool operator !($csclassname self) { return !(bool)self ; }
+  public static bool operator true($csclassname self) { return (bool)self ; }
+  public static bool operator false($csclassname self) { return !self ; }
+%}
+
+%{
+#include <pcomn_uuid.h>
+#include <pcomn_net/netaddr.h>
+%}
+
 %pragma(csharp) imclassimports=%{
   using System ;
   using System.Runtime ;
@@ -22,13 +38,8 @@
 %{
 using namespace pcomn::net ;
 using pcomn::MAC ;
+using pcomn::uuid ;
 %}
-
-class subnet_address ;
-class inet_address ;
-
-%typedef_template(address_pair, std::pair<inet_address, inet_address>) ;
-%typedef_template(unsigned_vector, std::vector<unsigned>) ;
 
 /*******************************************************************************
  GUID
@@ -50,6 +61,7 @@ class inet_address ;
     return new Guid(ret) ;
   }
 
+/*
 %typemap(csvarout, excode=SWIGEXCODE2) const uuid, uuid, const uuid &, uuid &, const uuid *, uuid * %{
     get {
         var data = new $csclassname($imcall, true);$excode
@@ -58,6 +70,7 @@ class inet_address ;
         return new Guid(ret) ;
     }
   %}
+*/
 
 struct uuid {
     uuid() ;
@@ -79,16 +92,32 @@ struct uuid {
     }
 } ;
 
+typedef unsigned vlan_num ;
+%typedef_template(unsigned_vector, std::vector<unsigned>) ;
+
 %rename("%(camelcase)s", %$isfunction) "" ;
+%rename("%(camelcase)s", %$isvariable) "" ;
 %rename("%s") "network" ;
 
-typedef unsigned vlan_num ;
+%rename_noprefix_camelcase(%$isenumitem, regextarget=1) FFNDX ;
+
+enum FilterFieldNdx {
+    FFNDX_PROTO,
+    FFNDX_SRC_ADDR,
+    FFNDX_DST_ADDR,
+    FFNDX_SRC_PORT,
+    FFNDX_DST_PORT
+} ;
+
+#define %rproperty(type, method) %property(%arg(type), method, method)
+#define %rpropertyval(type, method) %propertyval(%arg(type), method, method)
 
 /*******************************************************************************
  pcomn::net::inet_address
 *******************************************************************************/
-class inet_address {
-public:
+struct inet_address {
+    %properties(inet_address) ;
+
     enum ConstructFlags {
         IGNORE_HOSTNAME = 0x0001,
         IGNORE_DOTDEC   = 0x0002,
@@ -104,45 +133,55 @@ public:
     inet_address(uint8_t a, uint8_t b, uint8_t c, uint8_t d) ;
     inet_address(const std::string &address_string, unsigned flags = 0) ;
 
-    operator bool() const ;
+    operator bool() const noexcept ;
 
-    uint32_t ipaddr() const ;
+    %property(uint32_t, IpAddr, ipaddr) ;
 
-    inet_address next() const ;
-    inet_address prev() const ;
+    %propertyval(inet_address, Next, next) ;
+    %propertyval(inet_address, Prev, prev) ;
     static inet_address last() ;
 
-    std::string hostname() const ;
-    std::string dotted_decimal() const ;
+    %property(std::string, HostName, hostname) ;
+    %rproperty(std::string, dotted_decimal) ;
+    %endproperties() ;
 
-    %ToString(str)
-    std::string str() const ;
+    %ToString(str) ;
 } ;
+
+%inline {typedef inet_address inet_address_ ;}
+
+/*******************************************************************************
+ address_pair
+*******************************************************************************/
+%typedef_template(address_pair, std::pair<inet_address_, inet_address_>) ;
 
 /*******************************************************************************
  pcomn::net::subnet_address
 *******************************************************************************/
-class subnet_address {
-public:
+struct subnet_address {
+    %properties(subnet_address) ;
+
     subnet_address() ;
     subnet_address(uint32_t host_order_inetaddr, unsigned prefix_length) ;
-    subnet_address(const inet_address &address, unsigned prefix_length) ;
+    subnet_address(const inet_address_ &address, unsigned prefix_length) ;
     subnet_address(uint8_t a, uint8_t b, uint8_t c, uint8_t d, unsigned prefix_length) ;
     subnet_address(const std::string &subnet_string) ;
 
     operator bool() const ;
-    inet_address addr() const ;
-    operator inet_address() const ;
-    subnet_address subnet() const ;
-    unsigned pfxlen() const ;
-    uint32_t netmask() const ;
-
-    bool is_host() const ;
-    bool is_any() const ;
-    address_pair addr_range() const ;
+    operator inet_address_() const ;
 
     %ToString(str)
-    std::string str() const ;
+
+    %property(unsigned, PrefixLength, pfxlen) ;
+    %property(uint32_t, SubnetMask, netmask) ;
+
+    %propertyval(inet_address_, addr, addr) ;
+    %propertyval(subnet_address, subnet, subnet) ;
+    %propertyval(address_pair, addr_range, addr_range) ;
+
+    %property(bool, is_host, is_host) ;
+    %property(bool, is_any, is_any) ;
+    %endproperties() ;
 } ;
 
 /*******************************************************************************
@@ -157,32 +196,40 @@ struct MAC {
     unsigned octet(unsigned n) const ;
 
     %ToString(to_string) ;
-    std::string to_string() const ;
 
     %properties(MAC) ;
-    %property(size_t, Hash, hash) ;
+    %property(size_t, hash, hash) ;
+    %endproperties() ;
 } ;
-
 
 /*******************************************************************************
  Ex
 *******************************************************************************/
-%inline %{
-struct Ex {
-    MAC mac ;
-    uuid id ;
-    inet_address addr ;
-    subnet_address subnet ;
+struct Ppp ;
 
+struct Ppp {
+    %properties(Ppp) ;
     MAC make_mac(const std::string &str) const
     {
         return MAC(str) ;
     }
-    const MAC &get_mac() const { return mac ; }
-    void set_mac(const MAC &v) { mac = v ; }
 
     uuid make_id(const std::string &str) const { return pcomn::uuid(str) ; }
-    const uuid &get_id() const { return id ; }
-    void set_id(const uuid &v) { id = v ; }
+    %endproperties() ;
 } ;
-%}
+
+
+%feature("novaluewrapper") PppP ;
+%pcomn_shared_intrusive_ptr(Ppp)
+typedef pcomn::shared_intrusive_ptr<Ppp> PppP ;
+
+struct Interesting {
+    %properties(Interesting) ;
+
+    PppP pello() const ;
+    const PppP &pello_ref() const ;
+    void put_pello_ref(const PppP &) const ;
+    void put_pello(PppP) const ;
+
+    %endproperties() ;
+} ;

@@ -8,6 +8,7 @@
 *******************************************************************************/
 %include <pcomn_macros.swg>
 %include <pcomn_property.swg>
+%include <pcomn_intrusive_ptr.i>
 
 %include <exception.i>
 %include <stdint.i>
@@ -55,7 +56,6 @@ using SWIG.Exercises ;
   using System.Collections ;
   using System.Collections.Generic ;
   using System.Linq ;
-  using Helpers ;
 
   using ProxyClass  = $csclassname ;
   using ModuleClass = $module ;
@@ -283,8 +283,9 @@ class class_name ;
 %enddef
 
 %define %ToString(funcname)
-%csmethodmodifiers funcname "public override" ;
 %rename(ToString) funcname ;
+%csmethodmodifiers funcname "public override" ;
+std::string funcname() const ;
 %enddef
 
 /*

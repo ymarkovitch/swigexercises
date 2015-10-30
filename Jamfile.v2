@@ -53,3 +53,5 @@ dotnetdll swigexercises :
   ;
 
 dotnetexe swigex01 : swigex01.cs swigexercises ;
+
+alias wrapper : swigexercises_wrapper ;
